@@ -36,7 +36,7 @@ export function AppShell({ title, children, actions }: { title: string; children
 
   return (
     <div className="min-h-screen pb-24 md:pb-8">
-      <header className="sticky top-0 z-20 border-b bg-background/90 backdrop-blur print:hidden">
+      <header className="sticky top-0 z-20 border-b bg-background pt-[env(safe-area-inset-top)] print:hidden">
         <div className="mx-auto grid max-w-5xl grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3">
           <h1 className="truncate font-mono text-lg font-bold uppercase tracking-tight">{title}</h1>
           <div className="flex items-center gap-2">

@@ -9,12 +9,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { addReceipt } from "@/integrations/firebase/data";
+import { addReceipt, getReceipt, updateReceipt } from "@/integrations/firebase/data";
 import { loadSettings, money, randDigits, totals, type ReceiptData, type ShopSettings } from "@/lib/receipt";
 import { saveReceiptImage } from "@/lib/save-receipt-image";
 import { printReceipt } from "@/lib/thermal-printer";
 
 export const Route = createFileRoute("/_authenticated/new")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    edit: typeof search["edit"] === "string" && search["edit"] ? search["edit"] : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "New receipt — Receipt Printer" },
@@ -61,16 +64,27 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function NewReceipt() {
   const qc = useQueryClient();
+  const { edit } = Route.useSearch();
   const { data: shop } = useQuery({ queryKey: ["settings"], queryFn: loadSettings });
+  const { data: editingReceipt, isLoading: isLoadingReceipt } = useQuery({
+    queryKey: ["receipt", edit],
+    queryFn: () => getReceipt<{ id: string; data: ReceiptData }>(edit!),
+    enabled: !!edit,
+  });
   const [d, setD] = useState<ReceiptData | null>(null);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
-    if (shop && !d) setD(blank(shop));
-  }, [shop, d]);
+    if (!shop) return;
+    if (edit) {
+      if (editingReceipt) setD(editingReceipt.data);
+      return;
+    }
+    setD(blank(shop));
+  }, [shop, edit, editingReceipt]);
 
-  if (!shop || !d) return <AppShell title="New receipt"><p className="text-muted-foreground">Loading…</p></AppShell>;
+  if (!shop || !d || (edit && isLoadingReceipt)) return <AppShell title={edit ? "Edit receipt" : "New receipt"}><p className="text-muted-foreground">Loading…</p></AppShell>;
 
   const set = <K extends keyof ReceiptData>(k: K, v: ReceiptData[K]) => setD({ ...d, [k]: v });
   const setItem = (i: number, patch: Partial<ReceiptData["items"][number]>) =>
@@ -80,7 +94,9 @@ function NewReceipt() {
     if (!d.items.some((i) => i.name.trim())) { toast.error("Add at least one item"); return; }
     setSaving(true);
     try {
-      await addReceipt({ trans_number: d.trans, total: totals(d).total, data: d });
+      const receipt = { trans_number: d.trans, total: totals(d).total, data: d };
+      if (edit) await updateReceipt(edit, receipt);
+      else await addReceipt(receipt);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not save receipt");
       setSaving(false);
@@ -92,7 +108,7 @@ function NewReceipt() {
     if (!element) return;
     try {
       const mode = await printReceipt(element);
-      toast.success(mode === "direct" ? "Saved and sent to printer" : "Saved");
+      toast.success(mode === "direct" ? `${edit ? "Updated" : "Saved"} and sent to printer` : edit ? "Receipt updated" : "Saved");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not print receipt");
     }
@@ -114,7 +130,7 @@ function NewReceipt() {
   };
 
   return (
-    <AppShell title="New receipt">
+    <AppShell title={edit ? "Edit receipt" : "New receipt"}>
       <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-5 print:hidden">
           <section className="space-y-3 rounded-lg border bg-card p-4">
@@ -153,12 +169,12 @@ function NewReceipt() {
         <div className="md:sticky md:top-20 md:self-start">
           <Receipt id="print-area" shop={shop} data={d} />
            <div className="mt-4 flex flex-wrap gap-2 print:hidden">
-            <Button variant="outline" onClick={() => setD(blank(shop))}>Clear</Button>
+            <Button variant="outline" onClick={() => setD(editingReceipt?.data ?? blank(shop))}>{edit ? "Reset" : "Clear"}</Button>
              <Button variant="outline" className="flex-1" onClick={saveToGallery} disabled={exporting}>
                <Download className="h-4 w-4" /> Save to gallery
              </Button>
              <Button className="w-full" onClick={saveAndPrint} disabled={saving}>
-               <Printer className="h-4 w-4" /> Save & print · {money(totals(d).total)}
+               <Printer className="h-4 w-4" /> {edit ? "Update & print" : "Save & print"} · {money(totals(d).total)}
             </Button>
           </div>
         </div>

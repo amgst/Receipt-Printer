@@ -31,7 +31,7 @@ function AuthPage() {
 
   useEffect(() => {
     currentUser().then((user) => {
-      if (user) navigate({ to: "/new", replace: true });
+      if (user) navigate({ to: "/new", search: { edit: undefined }, replace: true });
     });
     hasAdmin().then((r) => setSetup(!r.exists)).catch(() => {});
   }, [navigate]);
@@ -46,7 +46,7 @@ function AuthPage() {
         toast.success("Super admin created");
       }
       await signInWithEmailAndPassword(auth, email, password);
-      navigate({ to: "/new", replace: true });
+      navigate({ to: "/new", search: { edit: undefined }, replace: true });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Sign in failed");
     } finally {
@@ -55,7 +55,7 @@ function AuthPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
+    <div className="flex min-h-screen items-center justify-center px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-[calc(env(safe-area-inset-top)+1rem)]">
       <form onSubmit={submit} className="receipt-paper w-full max-w-sm space-y-4 rounded-sm p-6 shadow-xl">
         <div className="text-center">
           <img src="/icon-192.png" alt="" className="mx-auto mb-3 h-14 w-14 rounded-xl" />

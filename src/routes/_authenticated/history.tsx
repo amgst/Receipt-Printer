@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Download, Printer, Trash2 } from "lucide-react";
+import { Download, Pencil, Printer, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/AppShell";
 import { Receipt } from "@/components/Receipt";
@@ -30,6 +30,7 @@ type Row = { id: string; trans_number: string; total: number; created_at: string
 
 function HistoryPage() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { data: shop } = useQuery({ queryKey: ["settings"], queryFn: loadSettings });
   const { data: rows, isLoading } = useQuery({
     queryKey: ["receipts"],
@@ -72,8 +73,8 @@ function HistoryPage() {
       ) : (
         <ul className="divide-y rounded-lg border bg-card">
           {rows.map((r) => (
-            <li key={r.id}>
-              <button onClick={() => setOpen(r)} className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left hover:bg-secondary">
+            <li key={r.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center hover:bg-secondary">
+              <button onClick={() => setOpen(r)} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left">
                 <div className="min-w-0">
                   <div className="truncate font-mono text-sm">#{r.trans_number}</div>
                   <div className="text-xs text-muted-foreground">
@@ -82,6 +83,16 @@ function HistoryPage() {
                 </div>
                  <div className="font-mono font-bold">{money(Number(r.total))}</div>
               </button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="mr-2 h-8 w-8"
+                aria-label={`Edit receipt ${r.trans_number}`}
+                title="Edit receipt"
+                onClick={() => navigate({ to: "/new", search: { edit: r.id } })}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
             </li>
           ))}
         </ul>

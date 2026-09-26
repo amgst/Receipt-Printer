@@ -10,6 +10,7 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  updateDoc,
 } from "firebase/firestore";
 import { currentUser, db } from "./client";
 
@@ -55,6 +56,21 @@ export async function listReceipts<T>() {
       ...data,
       created_at: data["created_at"]?.toDate?.().toISOString() ?? new Date().toISOString(),
     } as T;
+  });
+}
+
+export async function getReceipt<T>(id: string) {
+  const userId = await uid();
+  const snapshot = await getDoc(doc(db, "users", userId, "receipts", id));
+  if (!snapshot.exists()) throw new Error("Receipt not found.");
+  return { id: snapshot.id, ...snapshot.data() } as T;
+}
+
+export async function updateReceipt(id: string, data: Record<string, unknown>) {
+  const userId = await uid();
+  await updateDoc(doc(db, "users", userId, "receipts", id), {
+    ...data,
+    updated_at: serverTimestamp(),
   });
 }
 
