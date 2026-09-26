@@ -136,19 +136,21 @@ function NewReceipt() {
           <section className="space-y-3 rounded-lg border bg-card p-4">
             <h2 className="font-mono text-sm font-bold uppercase">Items</h2>
             {d.items.map((it, i) => (
-              <div key={i} className="grid grid-cols-[3.5rem_minmax(0,1fr)_5.5rem_auto] items-end gap-2 border-b pb-3 last:border-0">
-                <Field label="Qty">
-                  <Input type="number" inputMode="numeric" min={1} value={it.qty} onChange={(e) => setItem(i, { qty: Number(e.target.value) })} />
-                </Field>
+              <div key={i} className="space-y-2 border-b pb-3 last:border-0">
                 <Field label="Item name">
                   <Input value={it.name} onChange={(e) => setItem(i, { name: e.target.value })} placeholder="Medicine name" />
                 </Field>
-                <Field label="Price">
-                  <Input type="number" inputMode="decimal" step="0.01" value={it.price || ""} onChange={(e) => setItem(i, { price: Number(e.target.value) })} />
-                </Field>
-                <Button variant="ghost" size="icon" aria-label="Remove item" onClick={() => set("items", d.items.filter((_, x) => x !== i))} disabled={d.items.length === 1}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2">
+                  <Field label="Qty">
+                    <Input type="number" inputMode="numeric" min={1} value={it.qty} onChange={(e) => setItem(i, { qty: Number(e.target.value) })} />
+                  </Field>
+                  <Field label="Price">
+                    <Input type="number" inputMode="decimal" step="0.01" value={it.price || ""} onChange={(e) => setItem(i, { price: Number(e.target.value) })} />
+                  </Field>
+                  <Button variant="ghost" size="icon" aria-label="Remove item" onClick={() => set("items", d.items.filter((_, x) => x !== i))} disabled={d.items.length === 1}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             ))}
             <Button variant="outline" className="w-full" onClick={() => set("items", [...d.items, { qty: 1, name: "", price: 0 }])}>
