@@ -26,7 +26,12 @@ import java.util.UUID;
 
 @CapacitorPlugin(
     name = "ThermalPrinter",
-    permissions = { @Permission(alias = "bluetooth", strings = { Manifest.permission.BLUETOOTH_CONNECT }) }
+    permissions = {
+        @Permission(
+            alias = "bluetooth",
+            strings = { Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN }
+        )
+    }
 )
 public class ThermalPrinterPlugin extends Plugin {
     private static final UUID SPP_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
