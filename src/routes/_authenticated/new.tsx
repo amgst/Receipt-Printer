@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { addReceipt } from "@/integrations/firebase/data";
 import { loadSettings, money, randDigits, totals, type ReceiptData, type ShopSettings } from "@/lib/receipt";
 import { saveReceiptImage } from "@/lib/save-receipt-image";
+import { printReceipt } from "@/lib/thermal-printer";
 
 export const Route = createFileRoute("/_authenticated/new")({
   head: () => ({
@@ -87,8 +88,14 @@ function NewReceipt() {
     }
     setSaving(false);
     qc.invalidateQueries({ queryKey: ["receipts"] });
-    toast.success("Saved");
-    setTimeout(() => window.print(), 100);
+    const element = document.getElementById("print-area");
+    if (!element) return;
+    try {
+      const mode = await printReceipt(element);
+      toast.success(mode === "direct" ? "Saved and sent to printer" : "Saved");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not print receipt");
+    }
   };
 
   const saveToGallery = async () => {

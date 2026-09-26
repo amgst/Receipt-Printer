@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { deleteReceipt, listReceipts } from "@/integrations/firebase/data";
 import { loadSettings, money, type ReceiptData } from "@/lib/receipt";
 import { saveReceiptImage } from "@/lib/save-receipt-image";
+import { printReceipt } from "@/lib/thermal-printer";
 
 export const Route = createFileRoute("/_authenticated/history")({
   head: () => ({
@@ -93,7 +94,12 @@ function HistoryPage() {
                <div className="flex flex-wrap gap-2 print:hidden">
                  <Button variant="outline" aria-label="Delete receipt" onClick={() => remove(open.id)}><Trash2 className="h-4 w-4" /></Button>
                  <Button variant="outline" className="flex-1" onClick={saveToGallery} disabled={exporting}><Download className="h-4 w-4" /> Save to gallery</Button>
-                 <Button className="flex-1" onClick={() => window.print()}><Printer className="h-4 w-4" /> Reprint</Button>
+                 <Button className="flex-1" onClick={async () => {
+                   const element = document.getElementById("print-area");
+                   if (!element) return;
+                   try { await printReceipt(element); }
+                   catch (error) { toast.error(error instanceof Error ? error.message : "Could not print receipt"); }
+                 }}><Printer className="h-4 w-4" /> Reprint</Button>
               </div>
             </>
           )}

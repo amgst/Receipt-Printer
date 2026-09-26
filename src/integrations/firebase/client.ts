@@ -3,12 +3,12 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAmtmmjVZTZc7u_FWQiU3KZGSl3bZHS7rk",
-  authDomain: "receipt-printer-4df14.firebaseapp.com",
-  projectId: "receipt-printer-4df14",
-  storageBucket: "receipt-printer-4df14.firebasestorage.app",
-  messagingSenderId: "663791156046",
-  appId: "1:663791156046:web:edc51b2723554790547c1f",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
 export const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);

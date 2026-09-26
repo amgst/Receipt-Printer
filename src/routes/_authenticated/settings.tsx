@@ -10,6 +10,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { saveSettings } from "@/integrations/firebase/data";
 import { loadSettings, type ReceiptData, type ShopSettings } from "@/lib/receipt";
+import {
+  isThermalPrinterApp,
+  listPairedPrinters,
+  selectedPrinter,
+  selectPrinter,
+  type PairedPrinter,
+} from "@/lib/thermal-printer";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({
@@ -62,10 +69,30 @@ function SettingsPage() {
   const { data } = useQuery({ queryKey: ["settings"], queryFn: loadSettings });
   const [s, setS] = useState<ShopSettings | null>(null);
   const [saving, setSaving] = useState(false);
+  const [printers, setPrinters] = useState<PairedPrinter[]>([]);
+  const [printerAddress, setPrinterAddress] = useState("");
+  const [loadingPrinters, setLoadingPrinters] = useState(false);
 
   useEffect(() => {
     if (data) setS(data);
   }, [data]);
+
+  useEffect(() => {
+    if (isThermalPrinterApp()) setPrinterAddress(selectedPrinter());
+  }, []);
+
+  const findPrinters = async () => {
+    setLoadingPrinters(true);
+    try {
+      const devices = await listPairedPrinters();
+      setPrinters(devices);
+      if (!devices.length) toast.error("Pair the printer in Android Bluetooth settings first.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not read paired printers");
+    } finally {
+      setLoadingPrinters(false);
+    }
+  };
 
   if (!s) return <AppShell title="Store setup"><p className="text-muted-foreground">Loading…</p></AppShell>;
   const set = <K extends keyof ShopSettings>(k: K, v: ShopSettings[K]) => setS({ ...s, [k]: v });
@@ -134,6 +161,32 @@ function SettingsPage() {
             <h2 className="font-mono text-sm font-bold uppercase">Extras</h2>
             {F({ label: "QR code link (optional)", k: "qr_url", placeholder: "https://…" })}
           </section>
+
+          {isThermalPrinterApp() && (
+            <section className="space-y-3 rounded-lg border bg-card p-4">
+              <h2 className="font-mono text-sm font-bold uppercase">Thermal printer</h2>
+              <Button variant="outline" className="w-full" onClick={findPrinters} disabled={loadingPrinters}>
+                {loadingPrinters ? "Finding paired printers…" : "Find paired printers"}
+              </Button>
+              {!!printers.length && (
+                <select
+                  aria-label="Bluetooth printer"
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  value={printerAddress}
+                  onChange={(event) => {
+                    setPrinterAddress(event.target.value);
+                    selectPrinter(event.target.value);
+                    toast.success("Printer selected");
+                  }}
+                >
+                  <option value="">Choose a printer</option>
+                  {printers.map((printer) => (
+                    <option key={printer.address} value={printer.address}>{printer.name}</option>
+                  ))}
+                </select>
+              )}
+            </section>
+          )}
 
           <Button className="w-full" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save setup"}</Button>
         </div>

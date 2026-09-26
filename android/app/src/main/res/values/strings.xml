@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Receipt Printer</string>
+    <string name="title_activity_main">Receipt Printer</string>
+    <string name="package_name">com.wbify.receiptprinter</string>
+    <string name="custom_url_scheme">com.wbify.receiptprinter</string>
+</resources>
