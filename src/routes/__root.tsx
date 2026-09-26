@@ -71,6 +71,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "description", content: "Fill in and print your store receipts." },
       { name: "theme-color", content: "#f5f1e8" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "default" },
       { name: "apple-mobile-web-app-title", content: "Receipts" },
       { property: "og:title", content: "Receipt Printer" },
       { property: "og:description", content: "Fill in and print your store receipts." },
@@ -120,6 +121,14 @@ function RootComponent() {
       if (user) queryClient.invalidateQueries();
     });
   }, [router, queryClient]);
+
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch((error) => {
+        console.error("Service worker registration failed", error);
+      });
+    }
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
