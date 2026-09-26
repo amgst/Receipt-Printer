@@ -1,112 +1,94 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireFirebaseAuth } from "@/integrations/firebase/auth-middleware";
 
-async function admin() {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  return supabaseAdmin;
+const creds = z.object({ email: z.string().trim().email().max(255), password: z.string().min(6).max(72) });
+
+function friendly(message?: string) {
+  if (message && /weak|easy to guess|pwned|leak/i.test(message)) return "That password is too common. Please choose a stronger, unique password.";
+  return message ?? "Something went wrong";
 }
 
-function friendly(msg?: string) {
-  if (msg && /weak|easy to guess|pwned|leak/i.test(msg))
-    return "That password is too common or has appeared in a data leak. Please choose a stronger, unique password (e.g. 3-4 random words plus a number).";
-  return msg ?? "Something went wrong";
-}
+async function services() { return import("@/integrations/firebase/admin.server"); }
 
-async function assertAdmin(ctx: { supabase: any; userId: string }) {
-  const { data } = await ctx.supabase.rpc("has_role", { _user_id: ctx.userId, _role: "admin" });
-  if (!data) throw new Error("Only the super admin can do this.");
+async function assertAdmin(userId: string) {
+  const { adminDb } = await services();
+  const user = await adminDb.doc(`users/${userId}`).get();
+  if (user.data()?.["role"] !== "admin") throw new Error("Only the super admin can do this.");
 }
-
-const creds = z.object({
-  email: z.string().trim().email().max(255),
-  password: z.string().min(6).max(72),
-});
 
 export const hasAdmin = createServerFn({ method: "GET" }).handler(async () => {
-  const db = await admin();
-  const { count } = await db
-    .from("user_roles")
-    .select("id", { count: "exact", head: true })
-    .eq("role", "admin");
-  return { exists: (count ?? 0) > 0 };
+  const { adminDb } = await services();
+  const snapshot = await adminDb.collection("users").where("role", "==", "admin").limit(1).get();
+  return { exists: !snapshot.empty };
 });
 
 export const bootstrapAdmin = createServerFn({ method: "POST" })
-  .inputValidator((d) => creds.parse(d))
+  .validator((data) => creds.parse(data))
   .handler(async ({ data }) => {
-    const db = await admin();
-    const { count } = await db
-      .from("user_roles")
-      .select("id", { count: "exact", head: true })
-      .eq("role", "admin");
-    if ((count ?? 0) > 0) return { ok: false as const, error: "A super admin already exists." };
-    const { data: created, error } = await db.auth.admin.createUser({
-      email: data.email,
-      password: data.password,
-      email_confirm: true,
-    });
-    if (error || !created.user) return { ok: false as const, error: friendly(error?.message) };
-    await db.from("user_roles").insert({ user_id: created.user.id, role: "admin" });
-    return { ok: true as const, error: null };
+    const { adminAuth, adminDb } = await services();
+    const existing = await adminDb.collection("users").where("role", "==", "admin").limit(1).get();
+    if (!existing.empty) return { ok: false as const, error: "A super admin already exists." };
+    try {
+      const user = await adminAuth.createUser({ email: data.email, password: data.password, emailVerified: true });
+      await adminDb.doc(`users/${user.uid}`).set({ email: data.email, role: "admin", created_at: new Date().toISOString() });
+      return { ok: true as const, error: null };
+    } catch (error) {
+      return { ok: false as const, error: friendly(error instanceof Error ? error.message : undefined) };
+    }
   });
 
 export const listUsers = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireFirebaseAuth])
   .handler(async ({ context }) => {
-    await assertAdmin(context);
-    const db = await admin();
-    const { data, error } = await db.auth.admin.listUsers({ perPage: 1000 });
-    if (error) throw new Error(error.message);
-    const { data: roles } = await db.from("user_roles").select("user_id, role");
-    const adminIds = new Set((roles ?? []).filter((r) => r.role === "admin").map((r) => r.user_id));
-    return data.users.map((u) => ({
-      id: u.id,
-      email: u.email ?? "",
-      created_at: u.created_at,
-      last_sign_in_at: u.last_sign_in_at ?? null,
-      isAdmin: adminIds.has(u.id),
+    await assertAdmin(context.userId);
+    const { adminAuth, adminDb } = await services();
+    const [authUsers, roleDocs] = await Promise.all([adminAuth.listUsers(1000), adminDb.collection("users").get()]);
+    const roles = new Map(roleDocs.docs.map((item) => [item.id, item.data()["role"]]));
+    return authUsers.users.map((user) => ({
+      id: user.uid, email: user.email ?? "", created_at: user.metadata.creationTime,
+      last_sign_in_at: user.metadata.lastSignInTime ?? null, isAdmin: roles.get(user.uid) === "admin",
     }));
   });
 
 export const createAppUser = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d) => creds.parse(d))
+  .middleware([requireFirebaseAuth])
+  .validator((data) => creds.parse(data))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
-    const db = await admin();
-    const { data: created, error } = await db.auth.admin.createUser({
-      email: data.email,
-      password: data.password,
-      email_confirm: true,
-    });
-    if (error || !created.user) return { ok: false as const, error: friendly(error?.message) };
-    await db.from("user_roles").insert({ user_id: created.user.id, role: "user" });
-    return { ok: true as const, error: null };
+    await assertAdmin(context.userId);
+    const { adminAuth, adminDb } = await services();
+    try {
+      const user = await adminAuth.createUser({ email: data.email, password: data.password, emailVerified: true });
+      await adminDb.doc(`users/${user.uid}`).set({ email: data.email, role: "user", created_at: new Date().toISOString() });
+      return { ok: true as const, error: null };
+    } catch (error) {
+      return { ok: false as const, error: friendly(error instanceof Error ? error.message : undefined) };
+    }
   });
 
 export const setUserPassword = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid(), password: z.string().min(6).max(72) }).parse(d))
+  .middleware([requireFirebaseAuth])
+  .validator((data) => z.object({ id: z.string().min(1), password: z.string().min(6).max(72) }).parse(data))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
-    const db = await admin();
-    const { error } = await db.auth.admin.updateUserById(data.id, { password: data.password });
-    if (error) return { ok: false as const, error: friendly(error.message) };
-    return { ok: true as const, error: null };
+    await assertAdmin(context.userId);
+    const { adminAuth } = await services();
+    try { await adminAuth.updateUser(data.id, { password: data.password }); return { ok: true as const, error: null }; }
+    catch (error) { return { ok: false as const, error: friendly(error instanceof Error ? error.message : undefined) }; }
   });
 
 export const deleteAppUser = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .middleware([requireFirebaseAuth])
+  .validator((data) => z.object({ id: z.string().min(1) }).parse(data))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    await assertAdmin(context.userId);
     if (data.id === context.userId) throw new Error("You can't delete yourself.");
-    const db = await admin();
-    await db.from("receipts").delete().eq("user_id", data.id);
-    await db.from("shop_settings").delete().eq("user_id", data.id);
-    await db.from("user_roles").delete().eq("user_id", data.id);
-    const { error } = await db.auth.admin.deleteUser(data.id);
-    if (error) throw new Error(error.message);
+    const { adminAuth, adminDb } = await services();
+    const receipts = await adminDb.collection(`users/${data.id}/receipts`).get();
+    const batch = adminDb.batch();
+    receipts.docs.forEach((item) => batch.delete(item.ref));
+    batch.delete(adminDb.doc(`shop_settings/${data.id}`));
+    batch.delete(adminDb.doc(`users/${data.id}`));
+    await batch.commit();
+    await adminAuth.deleteUser(data.id);
     return { ok: true as const, error: null };
   });

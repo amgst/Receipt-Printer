@@ -1,4 +1,5 @@
-import { supabase } from "@/integrations/supabase/client";
+import { currentUser } from "@/integrations/firebase/client";
+import { getSettings, saveSettings } from "@/integrations/firebase/data";
 
 export type ShopSettings = {
   user_id: string;
@@ -62,15 +63,17 @@ export function fmtTime(t: string) {
 }
 
 export async function loadSettings(): Promise<ShopSettings> {
-  const { data: u } = await supabase.auth.getUser();
-  const uid = u.user!.id;
-  const { data } = await supabase.from("shop_settings").select("*").eq("user_id", uid).maybeSingle();
-  if (data) return { ...data, currency: "PKR" } as unknown as ShopSettings;
-  const { data: created, error } = await supabase
-    .from("shop_settings")
-    .insert({ user_id: uid, currency: "PKR" })
-    .select("*")
-    .single();
-  if (error) throw error;
-  return { ...created, currency: "PKR" } as unknown as ShopSettings;
+  const user = await currentUser();
+  if (!user) throw new Error("You must be signed in.");
+  const existing = await getSettings<ShopSettings>();
+  if (existing) return { ...existing, currency: "PKR" };
+  const created: ShopSettings = {
+    user_id: user.uid, business_name: "My Store", tagline: null, logo_data: null,
+    address: null, phone: null, store_number: null, register_number: null,
+    cashier: null, tax_rate: 0, currency: "PKR", footer_text: null,
+    footer_note: null, qr_url: null,
+  };
+  const { user_id: _userId, ...settings } = created;
+  await saveSettings(settings);
+  return created;
 }

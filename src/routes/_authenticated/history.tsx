@@ -7,7 +7,7 @@ import { AppShell } from "@/components/AppShell";
 import { Receipt } from "@/components/Receipt";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { supabase } from "@/integrations/supabase/client";
+import { deleteReceipt, listReceipts } from "@/integrations/firebase/data";
 import { loadSettings, money, type ReceiptData } from "@/lib/receipt";
 import { saveReceiptImage } from "@/lib/save-receipt-image";
 
@@ -33,9 +33,7 @@ function HistoryPage() {
   const { data: rows, isLoading } = useQuery({
     queryKey: ["receipts"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("receipts").select("*").order("created_at", { ascending: false }).limit(500);
-      if (error) throw error;
-      return data as unknown as Row[];
+      return listReceipts<Row>();
     },
   });
   const [open, setOpen] = useState<Row | null>(null);
@@ -43,8 +41,8 @@ function HistoryPage() {
 
   const remove = async (id: string) => {
     if (!confirm("Delete this receipt?")) return;
-    const { error } = await supabase.from("receipts").delete().eq("id", id);
-    if (error) { toast.error(error.message); return; }
+    try { await deleteReceipt(id); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "Could not delete receipt"); return; }
     setOpen(null);
     qc.invalidateQueries({ queryKey: ["receipts"] });
   };

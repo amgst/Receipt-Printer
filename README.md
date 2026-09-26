@@ -21,6 +21,17 @@ npm i
 npm run dev
 ```
 
+## Firebase setup
+
+The app uses Firebase Authentication and Cloud Firestore. In the Firebase console:
+
+1. Enable the Email/Password sign-in provider.
+2. Create a Firestore database.
+3. Deploy `firestore.rules` with `firebase deploy --only firestore:rules`.
+4. Create a service account and set `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, and `FIREBASE_PRIVATE_KEY` in your local environment and hosting provider. See `.env.example` for the expected format.
+
+The first visit to `/auth` creates the super-admin account. Existing Supabase users and receipts are not copied automatically.
+
 ## Built with
 
 - TanStack Start

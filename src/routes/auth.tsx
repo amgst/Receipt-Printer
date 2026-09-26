@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth, currentUser } from "@/integrations/firebase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,8 +30,8 @@ function AuthPage() {
   const [setup, setSetup] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) navigate({ to: "/new", replace: true });
+    currentUser().then((user) => {
+      if (user) navigate({ to: "/new", replace: true });
     });
     hasAdmin().then((r) => setSetup(!r.exists)).catch(() => {});
   }, [navigate]);
@@ -44,8 +45,7 @@ function AuthPage() {
         if (!r.ok) { toast.error(r.error); return; }
         toast.success("Super admin created");
       }
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+      await signInWithEmailAndPassword(auth, email, password);
       navigate({ to: "/new", replace: true });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Sign in failed");

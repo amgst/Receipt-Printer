@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { supabase } from "@/integrations/supabase/client";
+import { addReceipt } from "@/integrations/firebase/data";
 import { loadSettings, money, randDigits, totals, type ReceiptData, type ShopSettings } from "@/lib/receipt";
 import { saveReceiptImage } from "@/lib/save-receipt-image";
 
@@ -78,13 +78,14 @@ function NewReceipt() {
   const saveAndPrint = async () => {
     if (!d.items.some((i) => i.name.trim())) { toast.error("Add at least one item"); return; }
     setSaving(true);
-    const { error } = await supabase.from("receipts").insert({
-      trans_number: d.trans,
-      total: totals(d).total,
-      data: d as never,
-    });
+    try {
+      await addReceipt({ trans_number: d.trans, total: totals(d).total, data: d });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save receipt");
+      setSaving(false);
+      return;
+    }
     setSaving(false);
-    if (error) { toast.error(error.message); return; }
     qc.invalidateQueries({ queryKey: ["receipts"] });
     toast.success("Saved");
     setTimeout(() => window.print(), 100);

@@ -2,21 +2,15 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FilePlus2, History, Settings, Users, LogOut } from "lucide-react";
 import type { ReactNode } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { signOut as firebaseSignOut } from "firebase/auth";
+import { auth } from "@/integrations/firebase/client";
+import { getUserRole } from "@/integrations/firebase/data";
 
 export function useIsAdmin() {
   return useQuery({
     queryKey: ["is-admin"],
     queryFn: async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return false;
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", u.user.id)
-        .eq("role", "admin")
-        .maybeSingle();
-      return !!data;
+      return (await getUserRole()) === "admin";
     },
   });
 }
@@ -29,7 +23,7 @@ export function AppShell({ title, children, actions }: { title: string; children
   const signOut = async () => {
     await qc.cancelQueries();
     qc.clear();
-    await supabase.auth.signOut();
+    await firebaseSignOut(auth);
     navigate({ to: "/auth", replace: true });
   };
 

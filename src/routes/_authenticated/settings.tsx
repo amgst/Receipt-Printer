@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { supabase } from "@/integrations/supabase/client";
+import { saveSettings } from "@/integrations/firebase/data";
 import { loadSettings, type ReceiptData, type ShopSettings } from "@/lib/receipt";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -73,12 +73,14 @@ function SettingsPage() {
   const save = async () => {
     setSaving(true);
     const { user_id, ...rest } = s;
-    const { error } = await supabase
-      .from("shop_settings")
-       .update({ ...rest, currency: "PKR", tax_rate: Number(rest.tax_rate) || 0, updated_at: new Date().toISOString() })
-      .eq("user_id", user_id);
+    try {
+      await saveSettings({ ...rest, currency: "PKR", tax_rate: Number(rest.tax_rate) || 0 });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save setup");
+      setSaving(false);
+      return;
+    }
     setSaving(false);
-    if (error) { toast.error(error.message); return; }
     qc.invalidateQueries({ queryKey: ["settings"] });
     toast.success("Store setup saved");
   };
