@@ -1,13 +1,21 @@
 export async function saveReceiptImage(element: HTMLElement, transaction: string) {
-  const { toBlob } = await import("html-to-image");
-  const blob = await toBlob(element, {
+  const { toBlob, toPng } = await import("html-to-image");
+  const { saveImageToAndroidGallery } = await import("./thermal-printer");
+  const options = {
     pixelRatio: 2,
     backgroundColor: getComputedStyle(element).backgroundColor,
     cacheBust: true,
+  };
+  const fileName = `receipt-${transaction}.png`;
+  const dataUrl = await toPng(element, options);
+  if (await saveImageToAndroidGallery(dataUrl, fileName)) return;
+
+  const blob = await toBlob(element, {
+    ...options,
   });
   if (!blob) throw new Error("Could not create the receipt image.");
 
-  const file = new File([blob], `receipt-${transaction}.png`, { type: "image/png" });
+  const file = new File([blob], fileName, { type: "image/png" });
   if (navigator.share && navigator.canShare?.({ files: [file] })) {
     try {
       await navigator.share({ files: [file], title: "Receipt" });

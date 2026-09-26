@@ -5,6 +5,7 @@ export type PairedPrinter = { name: string; address: string };
 type ThermalPrinterPlugin = {
   listPaired(): Promise<{ devices: PairedPrinter[] }>;
   printImage(options: { address: string; dataUrl: string }): Promise<void>;
+  saveImage(options: { dataUrl: string; fileName: string }): Promise<{ uri: string }>;
 };
 
 const ThermalPrinter = registerPlugin<ThermalPrinterPlugin>("ThermalPrinter");
@@ -42,4 +43,10 @@ export async function printReceipt(element: HTMLElement): Promise<"direct" | "br
   });
   await ThermalPrinter.printImage({ address, dataUrl });
   return "direct";
+}
+
+export async function saveImageToAndroidGallery(dataUrl: string, fileName: string) {
+  if (!isThermalPrinterApp()) return false;
+  await ThermalPrinter.saveImage({ dataUrl, fileName });
+  return true;
 }

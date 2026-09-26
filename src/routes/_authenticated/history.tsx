@@ -55,6 +55,7 @@ function HistoryPage() {
     setExporting(true);
     try {
       await saveReceiptImage(element, open.trans_number);
+      toast.success("Receipt image saved");
     } catch {
       toast.error("Could not save the receipt image. Please try again.");
     } finally {

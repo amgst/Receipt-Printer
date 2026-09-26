@@ -6,7 +6,11 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.content.ContentResolver;
+import android.content.ContentValues;
+import android.net.Uri;
 import android.os.Build;
+import android.provider.MediaStore;
 import android.util.Base64;
 
 import com.getcapacitor.JSArray;
@@ -81,6 +85,42 @@ public class ThermalPrinterPlugin extends Plugin {
             return;
         }
         printImageNow(call);
+    }
+
+    @PluginMethod
+    public void saveImage(PluginCall call) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            call.reject("Saving to the gallery requires Android 10 or newer.");
+            return;
+        }
+        String dataUrl = call.getString("dataUrl");
+        String fileName = call.getString("fileName", "receipt.png");
+        if (dataUrl == null) { call.reject("Receipt image is required."); return; }
+
+        try {
+            byte[] imageBytes = Base64.decode(dataUrl.substring(dataUrl.indexOf(',') + 1), Base64.DEFAULT);
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Images.Media.DISPLAY_NAME, fileName);
+            values.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
+            values.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Receipt Printer");
+            values.put(MediaStore.Images.Media.IS_PENDING, 1);
+
+            ContentResolver resolver = getContext().getContentResolver();
+            Uri uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+            if (uri == null) throw new Exception("Could not create the gallery image.");
+            try (OutputStream output = resolver.openOutputStream(uri)) {
+                if (output == null) throw new Exception("Could not open the gallery image.");
+                output.write(imageBytes);
+            }
+            values.clear();
+            values.put(MediaStore.Images.Media.IS_PENDING, 0);
+            resolver.update(uri, values, null, null);
+            JSObject result = new JSObject();
+            result.put("uri", uri.toString());
+            call.resolve(result);
+        } catch (Exception error) {
+            call.reject(error.getMessage() == null ? "Could not save the receipt image." : error.getMessage());
+        }
     }
 
     @PermissionCallback
