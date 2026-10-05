@@ -24,9 +24,11 @@ import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @CapacitorPlugin(
     name = "ThermalPrinter",
@@ -39,6 +41,7 @@ import java.util.UUID;
 )
 public class ThermalPrinterPlugin extends Plugin {
     private static final UUID SPP_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
+    private final AtomicBoolean printing = new AtomicBoolean(false);
 
     private boolean needsPermission() {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
@@ -133,16 +136,19 @@ public class ThermalPrinterPlugin extends Plugin {
         String address = call.getString("address");
         String dataUrl = call.getString("dataUrl");
         if (address == null || dataUrl == null) { call.reject("Printer and receipt image are required."); return; }
+        if (!printing.compareAndSet(false, true)) {
+            call.reject("A receipt is already printing. Please wait for it to finish.");
+            return;
+        }
 
         new Thread(() -> {
             BluetoothSocket socket = null;
             try {
                 BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
                 if (adapter == null || !adapter.isEnabled()) throw new Exception("Turn on Bluetooth, then try again.");
+
                 BluetoothDevice device = adapter.getRemoteDevice(address);
-                socket = device.createRfcommSocketToServiceRecord(SPP_UUID);
-                adapter.cancelDiscovery();
-                socket.connect();
+                socket = connectBluetoothSocket(adapter, device);
 
                 byte[] imageBytes = Base64.decode(dataUrl.substring(dataUrl.indexOf(',') + 1), Base64.DEFAULT);
                 Bitmap source = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
@@ -158,13 +164,44 @@ public class ThermalPrinterPlugin extends Plugin {
                 output.flush();
                 bitmap.recycle();
                 if (source != bitmap) source.recycle();
-                socket.close();
                 call.resolve();
             } catch (Exception error) {
-                try { if (socket != null) socket.close(); } catch (Exception ignored) {}
                 call.reject(error.getMessage() == null ? "Printer connection failed." : error.getMessage());
+            } finally {
+                try { if (socket != null) socket.close(); } catch (Exception ignored) {}
+                printing.set(false);
             }
-        }).start();
+        }, "thermal-printer-thread").start();
+    }
+
+    private BluetoothSocket connectBluetoothSocket(BluetoothAdapter adapter, BluetoothDevice device) throws IOException {
+        IOException firstFailure = null;
+        for (int attempt = 0; attempt < 2; attempt++) {
+            BluetoothSocket candidate = null;
+            boolean connected = false;
+            try {
+                candidate = attempt == 0
+                    ? device.createRfcommSocketToServiceRecord(SPP_UUID)
+                    : device.createInsecureRfcommSocketToServiceRecord(SPP_UUID);
+                adapter.cancelDiscovery();
+                candidate.connect();
+                connected = true;
+                return candidate;
+            } catch (IOException error) {
+                if (firstFailure == null) firstFailure = error;
+                else firstFailure.addSuppressed(error);
+            } finally {
+                if (candidate != null && !connected) {
+                    try { candidate.close(); } catch (IOException ignored) {}
+                }
+            }
+        }
+        throw new IOException(
+            "Could not connect to the printer. Make sure it is powered on and nearby, "
+                + "disconnect it from other apps or phones, and check the selected printer in Store Setup. "
+                + "If it still fails, pair the printer again in Android Bluetooth settings.",
+            firstFailure
+        );
     }
 
     private byte[] toEscPosRaster(Bitmap bitmap) throws Exception {
